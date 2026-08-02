@@ -1,0 +1,5 @@
+# Normalize line endings: LF in the repository, on every platform.
+# core.autocrlf is true on Windows, which emitted "LF will be replaced by CRLF"
+# on every `git add`. The index already stores LF, so this makes that the
+# authoritative form and keeps clones on Linux/macOS from seeing whole-file diffs.
+* text=auto eol=lf

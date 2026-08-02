@@ -53,7 +53,9 @@ in the same place.
   this**: the failure was zero rows with no error. Detecting a policy no-op
   requires checking what was actually written.
 
-**Confirmed against live data before fixing** (`scripts/tmp-item8-counts.js`):
+**Confirmed against live data before fixing** (via a one-off service-role count
+script, since removed — recoverable from commit 5b97541 as
+`scripts/tmp-item8-counts.js` if the numbers ever need re-deriving):
 confirmed matches = 1, participants flagged eliminated = 0 → bug real, backfill
 touches exactly 1 row. Reproduced end-to-end through the UI: reko 8-2 S7S
 confirmed, no ELIMINATED tag on the loser.
