@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Trophy, Swords, Award, Settings,
+  LayoutDashboard, Trophy, Swords, Settings,
   Shield
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/useAuth';
@@ -15,11 +15,12 @@ export default function DashboardSidebar() {
   const pathname = usePathname();
   const { profile: user } = useAuth();
 
+  // Achievements is hidden until unlock state is computed from real match data —
+  // the page currently renders a hardcoded list.
   const links = [
     { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
     { href: '/dashboard/tournaments', label: 'My Tournaments', icon: Trophy },
     { href: '/dashboard/matches', label: 'Match Center', icon: Swords },
-    { href: '/dashboard/achievements', label: 'Achievements', icon: Award },
     { href: '/dashboard/settings', label: 'Settings', icon: Settings },
   ];
 

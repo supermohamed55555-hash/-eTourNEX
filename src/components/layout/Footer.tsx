@@ -2,15 +2,14 @@ import Link from 'next/link';
 import { Gamepad2, Twitter, Youtube, Twitch, Github, MessageCircle, ExternalLink } from 'lucide-react';
 
 const footerLinks = {
+  // Teams and News links are omitted while those pages are hidden (mock data only).
   Platform: [
     { label: 'Tournaments', href: '/tournaments' },
     { label: 'Leaderboard', href: '/leaderboard' },
     { label: 'Players',     href: '/players' },
-    { label: 'Teams',       href: '/teams' },
   ],
   Company: [
     { label: 'About',    href: '/about' },
-    { label: 'News',     href: '/news' },
     { label: 'Sponsors', href: '/sponsors' },
     { label: 'Careers',  href: '#' },
   ],

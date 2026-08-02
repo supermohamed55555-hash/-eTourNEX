@@ -38,6 +38,8 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // Public routes — no auth required
+  // '/news' and '/teams' stay listed while those pages are hidden so that
+  // stale links 404 instead of bouncing anonymous visitors to /login.
   const publicRoutes = [
     '/',
     '/login',

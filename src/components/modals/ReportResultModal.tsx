@@ -9,7 +9,7 @@ interface ReportResultModalProps {
   match: Match;
   currentUser: Profile;
   onClose: () => void;
-  onSubmit: (scoreA: number, scoreB: number, screenshotUrl: string) => Promise<void>;
+  onSubmit: (scoreA: number, scoreB: number, screenshotUrl: string) => Promise<unknown>;
 }
 
 export function ReportResultModal({

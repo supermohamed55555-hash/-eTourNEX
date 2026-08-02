@@ -1,23 +1,42 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import DashboardSidebar from '@/components/layout/DashboardSidebar';
 import { useAuth } from '@/lib/auth/useAuth';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchMyMatches } from '@/lib/bracket/engine';
+import { reportMatchResult } from '@/lib/actions/match-actions';
+import { ReportResultModal } from '@/components/modals/ReportResultModal';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { Swords } from 'lucide-react';
+import { Swords, Flag } from 'lucide-react';
 import Link from 'next/link';
+import type { Match } from '@/lib/types/database';
 
 export default function MatchCenterPage() {
   const { profile: user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const [reportMatch, setReportMatch] = useState<Match | null>(null);
 
   const { data: matches = [], isLoading } = useQuery({
     queryKey: ['my-matches', user?.id],
     queryFn: () => fetchMyMatches(user!.id),
     enabled: !!user?.id,
+  });
+
+  const reportMut = useMutation({
+    mutationFn: ({ matchId, scoreA, scoreB, screenshotUrl }: {
+      matchId: string;
+      scoreA: number;
+      scoreB: number;
+      screenshotUrl: string;
+    }) => reportMatchResult(matchId, scoreA, scoreB, screenshotUrl),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-matches', user?.id] });
+      setReportMatch(null);
+    },
   });
 
   const pendingMatches = matches.filter(m => m.status === 'scheduled' || m.status === 'pending_review');
@@ -69,6 +88,14 @@ export default function MatchCenterPage() {
                         Score: <span className="text-white font-mono font-bold">{m.score_a} - {m.score_b}</span>
                       </div>
                     )}
+                    {m.status === 'scheduled' && (
+                      <button
+                        onClick={() => setReportMatch(m)}
+                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-primary-600 to-secondary-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 hover:opacity-90 transition-all"
+                      >
+                        <Flag className="w-3.5 h-3.5" /> Report Result
+                      </button>
+                    )}
                   </div>
                 );
               })
@@ -103,6 +130,17 @@ export default function MatchCenterPage() {
           </Card>
         )}
       </main>
+
+      {reportMatch && user && (
+        <ReportResultModal
+          match={reportMatch}
+          currentUser={user}
+          onClose={() => setReportMatch(null)}
+          onSubmit={(scoreA, scoreB, screenshotUrl) =>
+            reportMut.mutateAsync({ matchId: reportMatch.id, scoreA, scoreB, screenshotUrl })
+          }
+        />
+      )}
     </div>
   );
 }

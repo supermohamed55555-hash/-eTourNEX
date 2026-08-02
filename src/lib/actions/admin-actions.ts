@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { logAudit } from '@/lib/actions/audit';
 import { revalidatePath } from 'next/cache';
 
 // ─── Tournament CRUD ────────────────────────────────────────────────────
@@ -333,26 +334,5 @@ async function requireAdmin(supabase: any, userId: string) {
 
   if (!profile || profile.role !== 'admin') {
     throw new Error('Admin access required');
-  }
-}
-
-async function logAudit(
-  supabase: any,
-  userId: string,
-  action: string,
-  entityType: string,
-  entityId: string,
-  details: Record<string, any>
-) {
-  try {
-    await supabase.from('audit_logs').insert({
-      user_id: userId,
-      action,
-      entity_type: entityType,
-      entity_id: entityId,
-      details,
-    });
-  } catch {
-    console.error('Failed to log audit event:', action);
   }
 }

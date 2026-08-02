@@ -8,18 +8,19 @@ import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import {
-  Trophy, Users, BarChart3, Newspaper, Shield, Home,
+  Trophy, Users, BarChart3, Shield, Home,
   Menu, X, ChevronDown, Bell, Search, Zap, LogOut,
-  Settings, User, Star, Gamepad2, Swords
+  Settings, User, Star, Gamepad2
 } from 'lucide-react';
 
+// Teams and News are hidden until they are backed by real data — the pages
+// currently render hardcoded mock content. Restore these entries alongside
+// the routes in src/app/teams and src/app/news.
 const NAV_ITEMS = [
   { href: '/',             label: 'Home',        icon: Home },
   { href: '/tournaments',  label: 'Tournaments', icon: Trophy },
   { href: '/leaderboard',  label: 'Leaderboard', icon: BarChart3 },
   { href: '/players',      label: 'Players',     icon: Users },
-  { href: '/teams',        label: 'Teams',       icon: Swords },
-  { href: '/news',         label: 'News',        icon: Newspaper },
   { href: '/sponsors',     label: 'Sponsors',    icon: Star },
 ];
 

@@ -1,27 +1,68 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
- * Look up a user's email by their username.
- * Requires the `get_user_email_by_username` RPC function in the database.
- * Falls back gracefully if the function doesn't exist yet.
+ * Shown for every failed sign-in, whatever the underlying cause: unknown
+ * username, unknown email, or wrong password. Keeping a single message means
+ * the response can't be used to test whether an account exists.
  */
-export async function lookupEmailByUsername(username: string): Promise<{ email: string | null; error: string | null }> {
-  const supabase = await createClient();
+const GENERIC_AUTH_ERROR =
+  'Invalid credentials. Please check your email/username and password.';
 
-  // Try the RPC function that queries auth.users via SECURITY DEFINER
-  const { data, error } = await supabase
-    .rpc('get_user_email_by_username', { lookup_username: username });
+/**
+ * Sign in with either an email address or a username.
+ *
+ * When the identifier is a username it is resolved to an email server-side,
+ * using the service-role client (the `get_user_email_by_username` RPC is no
+ * longer callable by `anon` — see supabase/migrations/003_lock_email_lookup.sql).
+ * The resolved email is never returned to the caller.
+ *
+ * On success, session cookies are written by the cookie-bound server client.
+ */
+export async function signInWithIdentifier(
+  identifier: string,
+  password: string
+): Promise<{ error: string | null }> {
+  const trimmed = identifier.trim();
 
-  if (error || !data) {
-    return {
-      email: null,
-      error: 'Username not found. Please try logging in with your email address.',
-    };
+  if (!trimmed || !password) {
+    return { error: GENERIC_AUTH_ERROR };
   }
 
-  return { email: data as string, error: null };
+  let email = trimmed;
+
+  // No '@' means it's a username — resolve it to an email.
+  if (!email.includes('@')) {
+    try {
+      const admin = createAdminClient();
+      const { data, error } = await admin.rpc('get_user_email_by_username', {
+        lookup_username: email,
+      });
+
+      if (error || !data) {
+        return { error: GENERIC_AUTH_ERROR };
+      }
+
+      email = data as string;
+    } catch {
+      // Missing/invalid service-role key, or the RPC is unreachable.
+      return { error: GENERIC_AUTH_ERROR };
+    }
+  }
+
+  const supabase = await createClient();
+  const { error: authError } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (authError) {
+    return { error: GENERIC_AUTH_ERROR };
+  }
+
+  return { error: null };
 }
 
 /**

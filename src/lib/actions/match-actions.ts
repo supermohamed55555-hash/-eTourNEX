@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { logAudit } from '@/lib/actions/audit';
 import { revalidatePath } from 'next/cache';
 
 export async function reportMatchResult(
@@ -117,6 +118,7 @@ export async function rejectMatch(matchId: string) {
       status: 'scheduled',
       reported_by: null,
       winner_id: null,
+      confirmed_by: null,
     })
     .eq('id', matchId);
 
@@ -157,10 +159,24 @@ async function advanceWinner(
   // Mark loser as eliminated
   const loserId = match.player_a_id === winnerParticipantId ? match.player_b_id : match.player_a_id;
   if (loserId) {
-    await supabase
+    // Item 8: RLS filters a policy-less UPDATE down to zero rows WITHOUT
+    // raising, so an `error` check alone cannot detect it — that is precisely
+    // how this went unnoticed. `.select()` makes PostgREST return the rows it
+    // actually wrote, so a no-op becomes observable.
+    const { data: eliminated, error: elimError } = await supabase
       .from('tournament_participants')
       .update({ eliminated: true })
-      .eq('id', loserId);
+      .eq('id', loserId)
+      .select('id');
+
+    if (elimError) throw new Error(elimError.message);
+    if (!eliminated || eliminated.length === 0) {
+      throw new Error(
+        `Failed to mark participant ${loserId} eliminated: the update matched no rows. ` +
+        'This usually means the admin UPDATE policy on tournament_participants is missing ' +
+        '(supabase/migrations/006_participant_elimination.sql).'
+      );
+    }
   }
 
   if (match.next_match_id) {
@@ -190,27 +206,5 @@ async function advanceWinner(
       .from('tournaments')
       .update({ status: 'completed' })
       .eq('id', match.tournament_id);
-  }
-}
-
-async function logAudit(
-  supabase: any,
-  userId: string,
-  action: string,
-  entityType: string,
-  entityId: string,
-  details: Record<string, any>
-) {
-  try {
-    await supabase.from('audit_logs').insert({
-      user_id: userId,
-      action,
-      entity_type: entityType,
-      entity_id: entityId,
-      details,
-    });
-  } catch {
-    // Don't fail the main operation if audit logging fails
-    console.error('Failed to log audit event:', action);
   }
 }

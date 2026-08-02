@@ -2,15 +2,12 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { lookupEmailByUsername } from '@/lib/actions/auth-actions';
+import { signInWithIdentifier } from '@/lib/actions/auth-actions';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Gamepad2, LogIn, Mail, AlertCircle, Zap, Shield, Trophy } from 'lucide-react';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -22,39 +19,21 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
-      let email = identifier.trim();
+      const { error: signInError } = await signInWithIdentifier(identifier, password);
 
-      // If identifier doesn't contain @, treat as username and look up email
-      if (!email.includes('@')) {
-        const result = await lookupEmailByUsername(email);
-        if (result.error || !result.email) {
-          setError(result.error || 'Username not found.');
-          setLoading(false);
-          return;
-        }
-        email = result.email;
-      }
-
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (authError) {
-        setError(authError.message === 'Invalid login credentials'
-          ? 'Invalid credentials. Please check your email/username and password.'
-          : authError.message
-        );
+      if (signInError) {
+        setError(signInError);
         setLoading(false);
         return;
       }
 
-      router.push('/dashboard');
-      router.refresh();
+      // Sign-in happened server-side, so the browser client's
+      // onAuthStateChange never fired and AuthProvider still holds a null
+      // session. A full navigation re-reads the freshly-set auth cookies;
+      // router.push would keep the stale mounted instance.
+      window.location.assign('/dashboard');
     } catch {
       setError('Login failed. Please try again.');
-    } finally {
       setLoading(false);
     }
   };
