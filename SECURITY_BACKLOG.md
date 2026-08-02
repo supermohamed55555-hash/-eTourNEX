@@ -73,7 +73,7 @@ SELECT id, eliminated FROM tournament_participants WHERE eliminated = true;
 
 ## Item 9 — `rejectMatch` leaves `confirmed_by` set
 
-**Status:** open, low effort
+**Status:** fixed — `confirmed_by: null` is present at `match-actions.ts:133`, verified in the Items 10-12 commit
 **Severity:** low on its own, but it interacts with migration 004
 **Location:** `src/lib/actions/match-actions.ts:111-121`
 
@@ -94,7 +94,7 @@ Fix: add `confirmed_by: null` to the update object at `match-actions.ts:113-120`
 
 ## Item 10 — Post-004, disputing a confirmed match fails silently and logs a false audit event
 
-**Status:** open — surfaced by 004, decide alongside it
+**Status:** fixed — hardened, still intentionally uncalled (no dispute UI)
 **Severity:** medium (misleading audit trail)
 **Location:** `src/lib/actions/match-actions.ts:128-148`
 
@@ -116,3 +116,60 @@ after a confirmed write.
 Same silent-zero-rows pattern applies to `reportMatchResult`
 (`match-actions.ts:23-33`), which already filters `.eq('status','scheduled')`
 and will now also fail silently against the tightened policy.
+
+**Fix applied** (Items 10-12 commit):
+- Item 10 — `disputeMatch` now fetches `status` first and throws distinct
+  messages for confirmed / already-disputed / not-yet-reported, adds
+  `.eq('status','pending_review')` to the update to close the fetch-then-write
+  race, `.select('id')`s the write and throws on an empty result, and moves the
+  audit write after the confirmed update so the log can never claim a dispute
+  that did not land. Still uncalled — no dispute UI wired up, by design.
+- Item 12 — `reportMatchResult` `.select('id')`s and throws on zero rows, so a
+  double-submit or a race against an admin confirm can no longer report success
+  while writing nothing.
+- Item 11 — `advanceWinner` now `.select('id')`s all three writes (elimination
+  was Item 8; the winner slot-fill and tournament completion were new) and
+  throws on zero rows. Also hardened two adjacent silent failures: the
+  `nextMatch` fetch now checks its error, and a both-slots-full bracket (the old
+  else-less `if`) now throws instead of quietly dropping the winner.
+
+**Verified end-to-end** on a live 4-player bracket, all three matches confirmed
+with zero errors:
+- Semifinal 1: Player 3 (3) beat Player 4 (1) — Player 4 ELIMINATED, Player 3
+  advanced to Final slot A.
+- Semifinal 2: reko (6) beat S7S/admin_dev2 (0) — S7S ELIMINATED, reko advanced
+  to Final slot B (the slot ternary picked `player_b_id` because A was taken).
+- Final: reko (10) beat Player 3 (0) — Player 3 ELIMINATED, tournament
+  completed, reko sole champion with no ELIMINATED tag.
+
+Every new guard fired in sequence with no silent failures.
+
+---
+
+## Item 13 — `confirmMatch`/`advanceWinner` is not atomic
+
+**Status:** open — documented, deferred (not fixed now)
+**Severity:** medium (partial state on mid-sequence failure)
+**Location:** `src/lib/actions/match-actions.ts` — `confirmMatch` (the `update`
+to `confirmed` + call to `advanceWinner`) and `advanceWinner`'s writes
+
+The Items 10-12 hardening made `advanceWinner`'s failures loud, which exposed a
+latent sequencing problem: `confirmMatch` is not atomic. It updates the match to
+`confirmed`, then calls `advanceWinner` (which updates the bracket), then logs
+the audit row. Each step is its own write.
+
+If `advanceWinner` now throws — e.g. a missing `next_match_id` target, or a
+both-slots-full bracket — the match is left `confirmed` while the bracket is not
+advanced and no audit row is written. The failure is no longer silent, but the
+partial state persists: an admin sees a confirmed match whose winner never
+entered the next round, with no audit trail explaining why. Previously this same
+sequence failed quietly and was indistinguishable from success, which is why it
+was never noticed.
+
+A proper fix needs a transaction spanning `confirmMatch` → `advanceWinner` →
+`logAudit` (or a compensating rollback of the `confirmed` update when
+advancement fails). That is a structural change to the action layer, so it is
+deferred rather than fixed in the Items 10-12 commit; the loud errors from that
+commit at least make the partial state diagnosable. Do not fix piecemeal with
+more single writes — the three writes must move together.
+

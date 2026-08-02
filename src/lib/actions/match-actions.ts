@@ -20,8 +20,11 @@ export async function reportMatchResult(
     throw new Error('Proof screenshot is required.');
   }
 
-  // The RLS policy ensures only match participants can update
-  const { error } = await supabase
+  // Item 12: this filters on status AND relies on RLS, either of which can
+  // reduce the write to zero rows. PostgREST does not treat that as an error,
+  // so `error` alone would let a no-op report back as success. `.select()`
+  // returns what was actually written, making the no-op detectable.
+  const { data: reported, error } = await supabase
     .from('matches')
     .update({
       score_a: scoreA,
@@ -31,9 +34,18 @@ export async function reportMatchResult(
       reported_by: user.id,
     })
     .eq('id', matchId)
-    .eq('status', 'scheduled'); // Only allow reporting for scheduled matches
+    .eq('status', 'scheduled') // Only allow reporting for scheduled matches
+    .select('id');
 
   if (error) throw new Error(error.message);
+  if (!reported || reported.length === 0) {
+    // Either the match left 'scheduled' (already reported, or an admin
+    // confirmed it) or the caller is not a participant and RLS filtered it out.
+    throw new Error(
+      'Could not report this result. The match may have already been reported ' +
+      'or confirmed, or you may not be one of its players. Refresh and try again.'
+    );
+  }
 }
 
 export async function confirmMatch(matchId: string) {
@@ -136,16 +148,52 @@ export async function disputeMatch(matchId: string, reason: string) {
     throw new Error('Dispute reason is required.');
   }
 
-  // Update match status to disputed (if the status column supports it)
-  const { error } = await supabase
+  // Item 10: this function has no UI entry point today. It is hardened rather
+  // than wired up — adding a dispute button is a product decision, not a bug
+  // fix — so that it is already safe whenever one is added.
+  //
+  // Check the status before writing. Migration 004's USING clause excludes
+  // 'confirmed', so a player disputing a confirmed match updates zero rows,
+  // which PostgREST reports as success. Without this, the caller saw nothing
+  // happen and the audit log recorded a dispute that never occurred.
+  const { data: match, error: fetchError } = await supabase
+    .from('matches')
+    .select('status')
+    .eq('id', matchId)
+    .single();
+
+  if (fetchError || !match) throw new Error('Match not found');
+
+  if (match.status === 'confirmed') {
+    throw new Error('Confirmed results can only be disputed by an admin.');
+  }
+  if (match.status === 'disputed') {
+    throw new Error('This match is already under dispute.');
+  }
+  if (match.status !== 'pending_review') {
+    throw new Error('Only a reported result can be disputed.');
+  }
+
+  const { data: disputed, error } = await supabase
     .from('matches')
     .update({
       status: 'disputed',
     })
-    .eq('id', matchId);
+    .eq('id', matchId)
+    .eq('status', 'pending_review') // Guard against a concurrent confirm/reject
+    .select('id');
 
   if (error) throw new Error(error.message);
+  if (!disputed || disputed.length === 0) {
+    // Lost a race, or RLS filtered the write (caller is not a participant).
+    throw new Error(
+      'Could not dispute this match. Its status may have changed, or you may ' +
+      'not be one of its players. Refresh and try again.'
+    );
+  }
 
+  // Audit only after the write is confirmed, so the log cannot claim a dispute
+  // that did not land.
   await logAudit(supabase, user.id, 'dispute_match', 'match', matchId, { reason });
 }
 
@@ -181,30 +229,67 @@ async function advanceWinner(
 
   if (match.next_match_id) {
     // Find the next match and fill the winner into the first available slot
-    const { data: nextMatch } = await supabase
+    const { data: nextMatch, error: nextFetchError } = await supabase
       .from('matches')
       .select('player_a_id, player_b_id')
       .eq('id', match.next_match_id)
       .single();
 
-    if (nextMatch) {
-      if (!nextMatch.player_a_id) {
-        await supabase
-          .from('matches')
-          .update({ player_a_id: winnerParticipantId })
-          .eq('id', match.next_match_id);
-      } else if (!nextMatch.player_b_id) {
-        await supabase
-          .from('matches')
-          .update({ player_b_id: winnerParticipantId })
-          .eq('id', match.next_match_id);
-      }
+    // This fetch also discarded its error. A failed read left nextMatch null
+    // and skipped the whole advancement below without a word.
+    if (nextFetchError) throw new Error(nextFetchError.message);
+    if (!nextMatch) {
+      throw new Error(
+        `Match ${match.id} points at next_match_id ${match.next_match_id}, which does not exist.`
+      );
+    }
+
+    // Item 11: same silent-no-op risk as Item 8. These writes are covered by
+    // the admin FOR ALL policy on matches, so they should succeed — but
+    // "should succeed, result discarded" is exactly what hid Item 8 for every
+    // tournament to date. A winner who fails to advance leaves the bracket
+    // stuck with no signal anywhere.
+    const slot = !nextMatch.player_a_id
+      ? 'player_a_id'
+      : !nextMatch.player_b_id
+        ? 'player_b_id'
+        : null;
+
+    // Previously an else-less if: with both slots full nothing was written and
+    // nothing was raised, so the winner was quietly dropped from the bracket.
+    if (!slot) {
+      throw new Error(
+        `Cannot advance winner: both player slots in next match ${match.next_match_id} ` +
+        'are already filled. The bracket is inconsistent and needs admin review.'
+      );
+    }
+
+    const { data: advanced, error: advanceError } = await supabase
+      .from('matches')
+      .update({ [slot]: winnerParticipantId })
+      .eq('id', match.next_match_id)
+      .select('id');
+
+    if (advanceError) throw new Error(advanceError.message);
+    if (!advanced || advanced.length === 0) {
+      throw new Error(
+        `Failed to advance the winner into next match ${match.next_match_id}: ` +
+        'the update matched no rows.'
+      );
     }
   } else {
     // Final match — mark tournament as completed
-    await supabase
+    const { data: completed, error: completeError } = await supabase
       .from('tournaments')
       .update({ status: 'completed' })
-      .eq('id', match.tournament_id);
+      .eq('id', match.tournament_id)
+      .select('id');
+
+    if (completeError) throw new Error(completeError.message);
+    if (!completed || completed.length === 0) {
+      throw new Error(
+        `Failed to mark tournament ${match.tournament_id} completed: the update matched no rows.`
+      );
+    }
   }
 }
