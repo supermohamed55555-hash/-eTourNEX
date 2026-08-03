@@ -100,7 +100,11 @@ const FEATURES = [
   },
 ];
 
+import { GameFilter } from '@/components/games/GameFilter';
+
 export default function HomePage() {
+  const [selectedGameId, setSelectedGameId] = useState('all');
+
   const { data: tournaments = [] } = useQuery({
     queryKey: ['tournaments'],
     queryFn: fetchTournaments,
@@ -117,8 +121,13 @@ export default function HomePage() {
     losses: lb.losses,
     id:     lb.profile?.id ?? lb.player_id,
   })).filter(p => p.username);
-  const featured    = tournaments.filter(t => t.status === 'registration' || t.status === 'in_progress').slice(0, 3);
-  const upcoming    = tournaments.filter(t => t.status === 'registration').slice(0, 6);
+
+  const filteredTournaments = selectedGameId === 'all'
+    ? tournaments
+    : tournaments.filter(t => t.game_id === selectedGameId || t.game?.slug === selectedGameId);
+
+  const featured = filteredTournaments.filter(t => t.status === 'registration' || t.status === 'in_progress').slice(0, 6);
+  const upcoming = filteredTournaments.filter(t => t.status === 'registration').slice(0, 6);
 
   return (
     <div className="overflow-x-hidden">
@@ -289,6 +298,10 @@ export default function HomePage() {
               </Link>
             </div>
           </FadeUp>
+
+          <div className="mb-6">
+            <GameFilter selectedGameId={selectedGameId} onSelectGame={setSelectedGameId} />
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {featured.map((t, i) => (

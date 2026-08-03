@@ -3,27 +3,35 @@
 import React from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { fetchLeaderboard } from '@/lib/bracket/engine';
+import { fetchLeaderboard, fetchAllPlayerBadges } from '@/lib/bracket/engine';
 import { Avatar } from '@/components/ui/Avatar';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { Trophy } from 'lucide-react';
+import { PlayerBadges } from '@/components/gaming/PlayerBadges';
+import { Trophy, Zap } from 'lucide-react';
 
 export default function LeaderboardPage() {
-  const { data: leaderboard = [], isLoading } = useQuery({
+  const { data: leaderboard = [], isLoading: loadingL } = useQuery({
     queryKey: ['leaderboard'],
     queryFn: fetchLeaderboard,
   });
+
+  const { data: allBadges = [], isLoading: loadingB } = useQuery({
+    queryKey: ['allPlayerBadges'],
+    queryFn: fetchAllPlayerBadges,
+  });
+
+  const isLoading = loadingL || loadingB;
 
   // Compute combined player stats
   const players = leaderboard.map(lb => {
     const wr = lb.wins + lb.losses > 0
       ? Math.round((lb.wins / (lb.wins + lb.losses)) * 100)
       : 0;
-    return { ...lb, winRate: wr };
-  });
+    const playerBadges = allBadges.filter(b => b.player_id === lb.player_id);
+    return { ...lb, winRate: wr, badges: playerBadges };
+  }).sort((a, b) => (b.points || 0) - (a.points || 0) || b.winRate - a.winRate);
 
   const top3 = players.slice(0, 3);
-  const rest  = players.slice(3);
 
   if (isLoading) {
     return (
@@ -51,7 +59,7 @@ export default function LeaderboardPage() {
           Esports <span className="brand-text">Leaderboard</span>
         </h1>
         <p className="text-gray-400 text-sm max-w-md mx-auto">
-          Top competitive players ranked by win rate, tournament victories, and total match history.
+          Top competitive players ranked by accumulated points, win rate, and tournament victories.
         </p>
       </div>
 
@@ -66,8 +74,21 @@ export default function LeaderboardPage() {
             <div>
               <h3 className="font-bold text-white text-lg">{top3[1].profile?.username ?? '—'}</h3>
               <p className="text-xs text-gray-400">{top3[1].wins}W · {top3[1].losses}L</p>
+              <PlayerBadges
+                playerBadges={top3[1].badges}
+                emailConfirmed={top3[1].profile?.email_confirmed}
+                role={top3[1].profile?.role}
+                tournamentsWon={top3[1].tournaments_won}
+                size="sm"
+                className="justify-center mt-1.5"
+              />
             </div>
-            <div className="p-2 rounded-xl bg-surface-3 text-slate-300 font-mono text-sm font-bold">{top3[1].winRate}% WR</div>
+            <div className="flex items-center justify-center gap-3">
+              <div className="p-2 rounded-xl bg-surface-3 text-slate-300 font-mono text-sm font-bold">{top3[1].winRate}% WR</div>
+              <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 font-mono text-sm font-bold flex items-center gap-1">
+                <Zap className="w-3.5 h-3.5" /> {top3[1].points || 0} PTS
+              </div>
+            </div>
           </div>
 
           {/* 1st */}
@@ -78,9 +99,19 @@ export default function LeaderboardPage() {
               <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 block">CHAMPION</span>
               <h3 className="font-black text-white text-xl">{top3[0].profile?.username ?? '—'}</h3>
               <p className="text-xs text-gray-400">{top3[0].wins}W · {top3[0].losses}L</p>
+              <PlayerBadges
+                playerBadges={top3[0].badges}
+                emailConfirmed={top3[0].profile?.email_confirmed}
+                role={top3[0].profile?.role}
+                tournamentsWon={top3[0].tournaments_won}
+                size="sm"
+                className="justify-center mt-1.5"
+              />
             </div>
-            <div className="p-3 rounded-xl bg-amber-500/20 text-amber-300 font-mono text-base font-black border border-amber-500/30">
-              {top3[0].winRate}% Win Rate
+            <div className="p-3 rounded-xl bg-amber-500/20 text-amber-300 font-mono text-base font-black border border-amber-500/30 flex items-center justify-center gap-2">
+              <span>{top3[0].winRate}% WR</span>
+              <span>•</span>
+              <span className="flex items-center gap-1 text-accent-neon"><Zap className="w-4 h-4" /> {top3[0].points || 0} PTS</span>
             </div>
           </div>
 
@@ -91,8 +122,21 @@ export default function LeaderboardPage() {
             <div>
               <h3 className="font-bold text-white text-lg">{top3[2].profile?.username ?? '—'}</h3>
               <p className="text-xs text-gray-400">{top3[2].wins}W · {top3[2].losses}L</p>
+              <PlayerBadges
+                playerBadges={top3[2].badges}
+                emailConfirmed={top3[2].profile?.email_confirmed}
+                role={top3[2].profile?.role}
+                tournamentsWon={top3[2].tournaments_won}
+                size="sm"
+                className="justify-center mt-1.5"
+              />
             </div>
-            <div className="p-2 rounded-xl bg-surface-3 text-amber-600 font-mono text-sm font-bold">{top3[2].winRate}% WR</div>
+            <div className="flex items-center justify-center gap-3">
+              <div className="p-2 rounded-xl bg-surface-3 text-amber-600 font-mono text-sm font-bold">{top3[2].winRate}% WR</div>
+              <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 font-mono text-sm font-bold flex items-center gap-1">
+                <Zap className="w-3.5 h-3.5" /> {top3[2].points || 0} PTS
+              </div>
+            </div>
           </div>
 
         </div>
@@ -105,6 +149,7 @@ export default function LeaderboardPage() {
             <tr>
               <th>Rank</th>
               <th>Player</th>
+              <th>Points</th>
               <th>Tournaments</th>
               <th>Wins</th>
               <th>Losses</th>
@@ -116,10 +161,22 @@ export default function LeaderboardPage() {
               <tr key={p.id}>
                 <td className="font-mono font-bold text-gray-400 text-sm">#{i + 1}</td>
                 <td>
-                  <Link href={`/players/${p.profile?.username}`} className="flex items-center gap-3 hover:text-primary-400 transition-colors">
-                    <Avatar src={p.profile?.avatar_url} alt={p.profile?.username} size="sm" seed={p.profile?.username} />
-                    <span className="font-bold text-white">{p.profile?.username ?? '—'}</span>
-                  </Link>
+                  <div className="flex items-center gap-3">
+                    <Link href={`/players/${p.profile?.username}`} className="flex items-center gap-3 hover:text-primary-400 transition-colors">
+                      <Avatar src={p.profile?.avatar_url} alt={p.profile?.username} size="sm" seed={p.profile?.username} />
+                      <span className="font-bold text-white">{p.profile?.username ?? '—'}</span>
+                    </Link>
+                    <PlayerBadges
+                      playerBadges={p.badges}
+                      emailConfirmed={p.profile?.email_confirmed}
+                      role={p.profile?.role}
+                      tournamentsWon={p.tournaments_won}
+                      size="sm"
+                    />
+                  </div>
+                </td>
+                <td className="font-mono font-bold text-emerald-400 flex items-center gap-1">
+                  <Zap className="w-3.5 h-3.5 text-accent-neon" /> {p.points || 0}
                 </td>
                 <td className="font-mono text-gray-400">{p.tournaments_played}</td>
                 <td className="font-mono text-emerald-400 font-bold">{p.wins}</td>

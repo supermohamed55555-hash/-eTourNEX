@@ -3,14 +3,14 @@
 import React from 'react';
 import { useAuth } from '@/lib/auth/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchProfiles, fetchTournaments, fetchPendingReviews } from '@/lib/bracket/engine';
+import { fetchProfiles, fetchTournaments, fetchPendingReviews, fetchDisputes } from '@/lib/bracket/engine';
 import { confirmMatch, rejectMatch } from '@/lib/actions/match-actions';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { StatCard, Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Skeleton, StatSkeleton } from '@/components/ui/Skeleton';
-import { Users, Trophy, Swords, ShieldCheck, Plus, CheckCircle2, XCircle } from 'lucide-react';
+import { Users, Trophy, Swords, ShieldCheck, Plus, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import Link from 'next/link';
 
@@ -38,6 +38,13 @@ export default function AdminDashboardPage() {
     queryFn: fetchPendingReviews,
   });
 
+  const { data: disputes = [], isLoading: loadingD } = useQuery({
+    queryKey: ['disputes'],
+    queryFn: () => fetchDisputes(),
+  });
+
+  const openDisputes = disputes.filter((d: any) => d.status === 'open').length;
+
   const confirmMut = useMutation({
     mutationFn: (matchId: string) => confirmMatch(matchId),
     onSuccess: () => {
@@ -52,7 +59,7 @@ export default function AdminDashboardPage() {
     },
   });
 
-  const isLoading = loadingP || loadingT || loadingM;
+  const isLoading = loadingP || loadingT || loadingM || loadingD;
 
   return (
     <div className="min-h-screen py-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
@@ -77,9 +84,9 @@ export default function AdminDashboardPage() {
         ) : (
           <>
             <StatCard label="Total Users"          value={profiles.length}    icon={<Users    className="w-5 h-5 text-primary-400"   />} />
-            <StatCard label="Active Tournaments"   value={tournaments.length} icon={<Trophy   className="w-5 h-5 text-amber-400"     />} />
-            <StatCard label="Matches Played"       value={42}                 icon={<Swords   className="w-5 h-5 text-secondary-400" />} />
+            <StatCard label="Active Tournaments"   value={tournaments.filter(t => t.status !== 'completed' && t.status !== 'cancelled').length} icon={<Trophy   className="w-5 h-5 text-amber-400"     />} />
             <StatCard label="Awaiting Review"      value={pending.length}     icon={<ShieldCheck className="w-5 h-5 text-red-400"   />} positive={pending.length === 0} />
+            <StatCard label="Open Disputes"        value={openDisputes}       icon={<AlertTriangle className="w-5 h-5 text-orange-400" />} positive={openDisputes === 0} />
           </>
         )}
       </div>
@@ -178,6 +185,28 @@ export default function AdminDashboardPage() {
         </Card>
 
       </div>
+
+      {/* Open Disputes Quick Link */}
+      {openDisputes > 0 && (
+        <Link href="/admin/disputes">
+          <div className="glass-card rounded-2xl p-5 border border-amber-500/30 bg-amber-500/5 flex items-center justify-between hover:border-amber-500/50 transition-all group cursor-pointer">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <p className="font-bold text-white">
+                  {openDisputes} Open {openDisputes === 1 ? 'Dispute' : 'Disputes'} Awaiting Review
+                </p>
+                <p className="text-xs text-amber-400/70">Click to manage disputes →</p>
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" icon={<AlertTriangle className="w-3.5 h-3.5 text-amber-400" />}>
+              View All
+            </Button>
+          </div>
+        </Link>
+      )}
     </div>
   );
 }

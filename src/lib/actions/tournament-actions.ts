@@ -23,6 +23,39 @@ export async function joinTournament(tournamentId: string) {
     throw new Error(error.message);
   }
 
+  // Update leaderboard tournaments_played
+  const { data: lb } = await supabase
+    .from('leaderboard_entries')
+    .select('tournaments_played')
+    .eq('player_id', user.id)
+    .maybeSingle();
+
+  if (lb) {
+    await supabase
+      .from('leaderboard_entries')
+      .update({
+        tournaments_played: (lb.tournaments_played || 0) + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('player_id', user.id);
+  } else {
+    await supabase
+      .from('leaderboard_entries')
+      .insert({
+        player_id: user.id,
+        wins: 0,
+        losses: 0,
+        tournaments_played: 1,
+        tournaments_won: 0,
+        points: 0,
+      });
+  }
+
+  // Award tournament participation points & evaluate achievements
+  const { awardPoints, evaluateAchievementsAndBadges } = await import('@/lib/actions/interaction-actions');
+  await awardPoints(user.id, 20, 'tournament_participation', tournamentId);
+  await evaluateAchievementsAndBadges(user.id);
+
   revalidatePath(`/tournaments/${tournamentId}`);
 }
 

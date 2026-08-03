@@ -20,7 +20,7 @@ export async function createTournament(data: {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  await requireAdmin(supabase, user.id);
+  await requireAdminOrOrganizer(supabase, user.id);
 
   const { data: tournament, error } = await supabase
     .from('tournaments')
@@ -45,7 +45,7 @@ export async function updateTournament(id: string, data: Record<string, any>) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  await requireAdmin(supabase, user.id);
+  await requireAdminOrOrganizer(supabase, user.id);
 
   const { error } = await supabase
     .from('tournaments')
@@ -69,7 +69,7 @@ export async function generateBracket(tournamentId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  await requireAdmin(supabase, user.id);
+  await requireAdminOrOrganizer(supabase, user.id);
 
   // Fetch tournament
   const { data: tournament, error: tError } = await supabase
@@ -239,6 +239,21 @@ export async function generateBracket(tournamentId: string) {
     .update({ status: 'in_progress' })
     .eq('id', tournamentId);
 
+  // Send "Tournament Started" notification to all participants
+  const { sendNotification } = await import('@/lib/actions/interaction-actions');
+  for (const p of participants) {
+    if (p.player_id) {
+      await sendNotification({
+        playerId: p.player_id,
+        title: 'Tournament Started! ⚔️',
+        message: `The bracket for "${tournament.name}" has been generated. Check your upcoming matches!`,
+        type: 'tournament_started',
+        linkUrl: `/tournaments/${tournamentId}`,
+        referenceId: `tourn_start_${tournamentId}`,
+      });
+    }
+  }
+
   await logAudit(supabase, user.id, 'generate_bracket', 'tournament', tournamentId, {
     participants: count,
     rounds: totalRounds,
@@ -324,6 +339,18 @@ export async function suspendUser(userId: string) {
 }
 
 // ─── Internal Helpers ─────────────────────────────────────────────────
+
+async function requireAdminOrOrganizer(supabase: any, userId: string) {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single();
+
+  if (!profile || (profile.role !== 'admin' && profile.role !== 'organizer')) {
+    throw new Error('Admin or Organizer access required');
+  }
+}
 
 async function requireAdmin(supabase: any, userId: string) {
   const { data: profile } = await supabase

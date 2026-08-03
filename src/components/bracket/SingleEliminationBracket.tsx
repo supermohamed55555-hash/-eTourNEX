@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Match, TournamentParticipant, Profile } from '@/lib/types/database';
+import { PlayerBadges } from '@/components/gaming/PlayerBadges';
 import { Trophy, CheckCircle2, Clock, Upload, Shield, Image as ImageIcon } from 'lucide-react';
 
 interface BracketProps {
@@ -247,9 +248,15 @@ function PlayerSlot({
         />
 
         {/* Display Name */}
-        <span className="text-xs font-semibold truncate max-w-[110px]">
+        <span className="text-xs font-semibold truncate max-w-[90px]">
           {profile.display_name || profile.username}
         </span>
+
+        <PlayerBadges
+          emailConfirmed={profile.email_confirmed}
+          role={profile.role}
+          size="sm"
+        />
       </div>
 
       {/* Score */}

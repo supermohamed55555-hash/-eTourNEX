@@ -5,12 +5,12 @@ import DashboardSidebar from '@/components/layout/DashboardSidebar';
 import { useAuth } from '@/lib/auth/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchMyMatches } from '@/lib/bracket/engine';
-import { reportMatchResult } from '@/lib/actions/match-actions';
+import { reportMatchResult, reportDispute } from '@/lib/actions/match-actions';
 import { ReportResultModal } from '@/components/modals/ReportResultModal';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { Swords, Flag } from 'lucide-react';
+import { Swords, Flag, AlertTriangle, X } from 'lucide-react';
 import Link from 'next/link';
 import type { Match } from '@/lib/types/database';
 
@@ -19,6 +19,9 @@ export default function MatchCenterPage() {
   const queryClient = useQueryClient();
 
   const [reportMatch, setReportMatch] = useState<Match | null>(null);
+  const [disputeMatch, setDisputeMatch] = useState<Match | null>(null);
+  const [disputeReason, setDisputeReason] = useState('');
+  const [disputeError, setDisputeError] = useState<string | null>(null);
 
   const { data: matches = [], isLoading } = useQuery({
     queryKey: ['my-matches', user?.id],
@@ -39,7 +42,20 @@ export default function MatchCenterPage() {
     },
   });
 
-  const pendingMatches = matches.filter(m => m.status === 'scheduled' || m.status === 'pending_review');
+  const disputeMut = useMutation({
+    mutationFn: ({ matchId, reason }: { matchId: string; reason: string }) =>
+      reportDispute(matchId, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-matches', user?.id] });
+      setDisputeMatch(null);
+      setDisputeReason('');
+      setDisputeError(null);
+    },
+    onError: (err: any) => setDisputeError(err.message || 'Failed to report dispute.'),
+  });
+
+  const pendingMatches   = matches.filter(m => m.status === 'scheduled' || m.status === 'pending_review');
+  const disputedMatches  = matches.filter(m => m.status === 'disputed');
   const completedMatches = matches.filter(m => m.status === 'confirmed');
 
   return (
@@ -96,12 +112,49 @@ export default function MatchCenterPage() {
                         <Flag className="w-3.5 h-3.5" /> Report Result
                       </button>
                     )}
+                    {m.status === 'pending_review' && (
+                      <button
+                        onClick={() => { setDisputeMatch(m); setDisputeReason(''); setDisputeError(null); }}
+                        className="w-full py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-amber-500/20 transition-all"
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5" /> Dispute This Result
+                      </button>
+                    )}
                   </div>
                 );
               })
             )}
           </CardContent>
         </Card>
+
+        {/* Disputed Matches */}
+        {disputedMatches.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <span className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-400" />
+                  Disputed Matches
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {disputedMatches.map(m => {
+                const playerA = m.player_a?.profile;
+                const playerB = m.player_b?.profile;
+                return (
+                  <div key={m.id} className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-1">
+                    <p className="text-sm font-bold text-white">
+                      {playerA?.username || 'TBD'} vs {playerB?.username || 'TBD'}
+                    </p>
+                    <p className="text-xs text-gray-400">{m.round_name} • Score: {m.score_a ?? '?'}-{m.score_b ?? '?'}</p>
+                    <p className="text-xs text-amber-400">⚠ Under review by admin</p>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
 
         {completedMatches.length > 0 && (
           <Card>
@@ -140,6 +193,55 @@ export default function MatchCenterPage() {
             reportMut.mutateAsync({ matchId: reportMatch.id, scoreA, scoreB, screenshotUrl })
           }
         />
+      )}
+
+      {/* Dispute Modal */}
+      {disputeMatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="glass-card rounded-2xl border border-amber-500/30 p-6 w-full max-w-md space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-black text-white flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-400" /> Report Dispute
+              </h2>
+              <button
+                onClick={() => { setDisputeMatch(null); setDisputeError(null); }}
+                className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-400">
+              Describe why you&apos;re disputing this match result. An admin will review your dispute.
+            </p>
+            <textarea
+              value={disputeReason}
+              onChange={e => setDisputeReason(e.target.value)}
+              placeholder="Explain the issue in detail (min. 10 characters)…"
+              rows={4}
+              className="input w-full resize-none"
+            />
+            {disputeError && (
+              <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+                {disputeError}
+              </p>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setDisputeMatch(null); setDisputeError(null); }}
+                className="px-4 py-2 rounded-xl text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => disputeMut.mutate({ matchId: disputeMatch.id, reason: disputeReason })}
+                disabled={disputeMut.isPending || disputeReason.trim().length < 10}
+                className="px-4 py-2 rounded-xl text-sm font-bold bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {disputeMut.isPending ? 'Submitting…' : 'Submit Dispute'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

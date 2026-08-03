@@ -2,26 +2,28 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
+import NotificationDropdown from '@/components/layout/NotificationDropdown';
 import {
   Trophy, Users, BarChart3, Shield, Home,
-  Menu, X, ChevronDown, Bell, Search, Zap, LogOut,
-  Settings, User, Star, Gamepad2
+  Menu, X, ChevronDown, Search, Zap, LogOut,
+  Settings, User, Star, Gamepad2, Newspaper, Film, Swords, ShieldCheck
 } from 'lucide-react';
 
-// Teams and News are hidden until they are backed by real data — the pages
-// currently render hardcoded mock content. Restore these entries alongside
-// the routes in src/app/teams and src/app/news.
 const NAV_ITEMS = [
   { href: '/',             label: 'Home',        icon: Home },
   { href: '/tournaments',  label: 'Tournaments', icon: Trophy },
+  { href: '/games',        label: 'Games',       icon: Gamepad2 },
   { href: '/leaderboard',  label: 'Leaderboard', icon: BarChart3 },
   { href: '/players',      label: 'Players',     icon: Users },
+  { href: '/teams',        label: 'Teams',       icon: Swords },
   { href: '/sponsors',     label: 'Sponsors',    icon: Star },
+  { href: '/news',         label: 'News',        icon: Newspaper },
+  { href: '/community',    label: 'Community',   icon: Film },
 ];
 
 interface NavbarProps {
@@ -30,6 +32,7 @@ interface NavbarProps {
 
 export default function Navbar({ user }: NavbarProps) {
   const pathname   = usePathname();
+  const router     = useRouter();
   const [mobile, setMobile]     = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [dropdown, setDropdown] = useState(false);
@@ -57,6 +60,7 @@ export default function Navbar({ user }: NavbarProps) {
   useEffect(() => { setMobile(false); }, [pathname]);
 
   const isAdmin = user?.role === 'admin';
+  const isOrganizer = user?.role === 'organizer' || isAdmin;
 
   return (
     <>
@@ -110,17 +114,18 @@ export default function Navbar({ user }: NavbarProps) {
             <div className="ml-auto flex items-center gap-2">
 
               {/* Search button */}
-              <button className="hidden md:flex items-center justify-center w-9 h-9 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all">
+              <button
+                onClick={() => router.push('/search')}
+                title="Search"
+                className="hidden md:flex items-center justify-center w-9 h-9 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+              >
                 <Search className="w-4 h-4" />
               </button>
 
               {user ? (
                 <>
                   {/* Notifications */}
-                  <button className="relative flex items-center justify-center w-9 h-9 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all">
-                    <Bell className="w-4 h-4" />
-                    <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-accent-neon border border-gaming-dark" />
-                  </button>
+                  <NotificationDropdown />
 
                   {/* Profile Dropdown */}
                   <div className="relative" ref={dropRef}>
@@ -167,6 +172,9 @@ export default function Navbar({ user }: NavbarProps) {
                             <DropdownItem href="/dashboard" icon={<BarChart3 className="w-4 h-4" />} label="Dashboard" />
                             <DropdownItem href={`/players/${user.username}`} icon={<User className="w-4 h-4" />} label="My Profile" />
                             <DropdownItem href="/dashboard/settings" icon={<Settings className="w-4 h-4" />} label="Settings" />
+                            {isOrganizer && (
+                              <DropdownItem href="/organizer" icon={<ShieldCheck className="w-4 h-4" />} label="Organizer Center" highlight />
+                            )}
                             {isAdmin && (
                               <DropdownItem href="/admin" icon={<Shield className="w-4 h-4" />} label="Admin Panel" highlight />
                             )}
@@ -248,6 +256,19 @@ export default function Navbar({ user }: NavbarProps) {
                     </Link>
                   );
                 })}
+                {/* Search link (mobile) */}
+                <Link
+                  href="/search"
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all',
+                    pathname === '/search'
+                      ? 'text-white bg-primary-600/20 border border-primary-500/30'
+                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  )}
+                >
+                  <Search className="w-4 h-4" />
+                  Search
+                </Link>
                 {!user && (
                   <div className="pt-3 border-t border-white/10 space-y-2">
                     <Link href="/login" className="block px-4 py-3 rounded-xl text-center text-sm font-semibold text-gray-300 hover:bg-white/5 transition-all">

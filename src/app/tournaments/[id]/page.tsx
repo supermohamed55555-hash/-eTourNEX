@@ -8,6 +8,7 @@ import { fetchTournamentById, fetchMatches, fetchParticipants } from '@/lib/brac
 import { joinTournament, leaveTournament } from '@/lib/actions/tournament-actions';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
+import { PlayerBadges } from '@/components/gaming/PlayerBadges';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import BracketFlow from '@/components/bracket/BracketFlow';
@@ -33,7 +34,7 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
     queryFn: () => fetchParticipants(id),
   });
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'bracket' | 'participants' | 'rules'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'bracket' | 'participants' | 'discussion' | 'rules'>('overview');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const joinMutation = useMutation({
@@ -164,7 +165,7 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
 
       {/* Tabs */}
       <div className="tab-bar">
-        {(['overview', 'bracket', 'participants', 'rules'] as const).map(tab => (
+        {(['overview', 'bracket', 'participants', 'discussion', 'rules'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} className={`tab-item ${activeTab === tab ? 'active' : ''}`}>
             {tab.toUpperCase()}
           </button>
@@ -205,15 +206,26 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
           {participants.length === 0 ? (
             <div className="col-span-4 text-center py-12 text-gray-500 text-sm">No participants registered yet.</div>
           ) : participants.map((p, i) => (
-            <div key={p.id} className="glass-card rounded-xl p-4 flex items-center gap-3 border border-white/10">
-              <Avatar src={p.profile?.avatar_url} alt={p.profile?.username} size="sm" seed={p.profile?.username} />
-              <div>
-                <p className="font-bold text-white text-sm">{p.profile?.username ?? 'Unknown'}</p>
-                <span className="text-[10px] text-gray-400">Seed #{i + 1}</span>
+            <div key={p.id} className="glass-card rounded-xl p-4 flex items-center justify-between border border-white/10">
+              <div className="flex items-center gap-3">
+                <Avatar src={p.profile?.avatar_url} alt={p.profile?.username} size="sm" seed={p.profile?.username} />
+                <div>
+                  <p className="font-bold text-white text-sm">{p.profile?.username ?? 'Unknown'}</p>
+                  <span className="text-[10px] text-gray-400">Seed #{i + 1}</span>
+                </div>
               </div>
+              <PlayerBadges
+                emailConfirmed={p.profile?.email_confirmed}
+                role={p.profile?.role}
+                size="sm"
+              />
             </div>
           ))}
         </div>
+      )}
+
+      {activeTab === 'discussion' && (
+        <TournamentCommentsSection tournamentId={tournament.id} />
       )}
 
       {activeTab === 'rules' && (
@@ -226,3 +238,53 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
     </div>
   );
 }
+
+import { CommentSection } from '@/components/community/CommentSection';
+import {
+  fetchTournamentComments, addTournamentComment, deleteTournamentComment,
+  getTournamentLikes, toggleTournamentLike
+} from '@/lib/actions/community-actions';
+
+function TournamentCommentsSection({ tournamentId }: { tournamentId: string }) {
+  const { profile: user } = useAuth();
+  const qc = useQueryClient();
+
+  const { data: comments = [], isLoading } = useQuery({
+    queryKey: ['tournament-comments', tournamentId],
+    queryFn: () => fetchTournamentComments(tournamentId),
+  });
+
+  const { data: likesData = { count: 0, hasLiked: false } } = useQuery({
+    queryKey: ['tournament-likes', tournamentId, user?.id],
+    queryFn: () => getTournamentLikes(tournamentId, user?.id),
+  });
+
+  const handleAdd = async (content: string, parentId?: string) => {
+    await addTournamentComment(tournamentId, content, parentId);
+    qc.invalidateQueries({ queryKey: ['tournament-comments', tournamentId] });
+  };
+
+  const handleDelete = async (commentId: string) => {
+    await deleteTournamentComment(commentId);
+    qc.invalidateQueries({ queryKey: ['tournament-comments', tournamentId] });
+  };
+
+  const handleToggleLike = async () => {
+    await toggleTournamentLike(tournamentId);
+    qc.invalidateQueries({ queryKey: ['tournament-likes', tournamentId] });
+  };
+
+  return (
+    <CommentSection
+      comments={comments}
+      onAddComment={handleAdd}
+      onDeleteComment={handleDelete}
+      onToggleLike={handleToggleLike}
+      likesCount={likesData.count}
+      hasLiked={likesData.hasLiked}
+      title="Tournament Discussion & Community Posts"
+      loading={isLoading}
+    />
+  );
+}
+
