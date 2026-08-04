@@ -11,13 +11,14 @@ import NotificationDropdown from '@/components/layout/NotificationDropdown';
 import {
   Trophy, Users, BarChart3, Shield, Home,
   Menu, X, ChevronDown, Search, Zap, LogOut,
-  Settings, User, Star, Gamepad2, Newspaper, Film, Swords, ShieldCheck
+  Settings, User, Star, Gamepad2, Newspaper, Film, Swords, ShieldCheck, ShoppingBag
 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { href: '/',             label: 'Home',        icon: Home },
   { href: '/tournaments',  label: 'Tournaments', icon: Trophy },
   { href: '/games',        label: 'Games',       icon: Gamepad2 },
+  { href: '/shop',         label: 'Shop',        icon: ShoppingBag },
   { href: '/leaderboard',  label: 'Leaderboard', icon: BarChart3 },
   { href: '/players',      label: 'Players',     icon: Users },
   { href: '/teams',        label: 'Teams',       icon: Swords },

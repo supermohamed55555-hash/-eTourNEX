@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardSidebar from '@/components/layout/DashboardSidebar';
 import { useAuth } from '@/lib/auth/useAuth';
@@ -22,10 +22,24 @@ import type { Tournament } from '@/lib/types/database';
 
 type Tab = 'joined' | 'organized';
 
+// ─── Suspense-safe Search Params Handler ─────────────────────────────
+function SearchParamsHandler({
+  onParams,
+}: {
+  onParams: (create: boolean, gameId: string | null) => void;
+}) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const create = searchParams.get('create') === 'true';
+    const gameId = searchParams.get('gameId');
+    onParams(create, gameId);
+  }, [searchParams]);
+  return null;
+}
+
 export default function DashboardTournamentsPage() {
   const { profile: user } = useAuth();
   const queryClient = useQueryClient();
-  const searchParams = useSearchParams();
 
   const [activeTab, setActiveTab] = useState<Tab>('joined');
   const [search, setSearch]       = useState('');
@@ -42,18 +56,17 @@ export default function DashboardTournamentsPage() {
   const [rules, setRules]         = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (searchParams.get('create') === 'true') {
+  const handleSearchParams = (create: boolean, gameId: string | null) => {
+    if (create) {
       setShowCreateModal(true);
       setActiveTab('organized');
     }
-    const paramGameId = searchParams.get('gameId');
-    if (paramGameId) {
-      setGameId(paramGameId);
+    if (gameId) {
+      setGameId(gameId);
       setShowCreateModal(true);
       setActiveTab('organized');
     }
-  }, [searchParams]);
+  };
 
   const isOrganizerOrAdmin = user?.role === 'organizer' || user?.role === 'admin';
 
@@ -126,6 +139,9 @@ export default function DashboardTournamentsPage() {
 
   return (
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
+      <Suspense fallback={null}>
+        <SearchParamsHandler onParams={handleSearchParams} />
+      </Suspense>
       <DashboardSidebar />
       <main className="flex-1 space-y-6">
 

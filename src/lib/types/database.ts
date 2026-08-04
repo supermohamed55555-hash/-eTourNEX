@@ -322,3 +322,41 @@ export interface TournamentComment {
   player?: Profile;
   replies?: TournamentComment[];
 }
+
+// ─── Points Shop ───────────────────────────────────────────────────────
+
+export type ShopCategory = 'avatar_frame' | 'name_color' | 'profile_border' | 'seasonal';
+
+export interface ShopItem {
+  id: string;
+  name: string;
+  description: string | null;
+  category: ShopCategory;
+  price: number;
+  image_url: string | null;
+  css_value: string;
+  is_available: boolean;
+  season: string | null;
+  created_at: string;
+}
+
+export interface PlayerInventoryItem {
+  id: string;
+  player_id: string;
+  item_id: string;
+  purchased_at: string;
+  item?: ShopItem;
+}
+
+export interface PlayerEquippedItems {
+  id: string;
+  player_id: string;
+  avatar_frame_id: string | null;
+  name_color_id: string | null;
+  profile_border_id: string | null;
+  updated_at: string;
+  avatar_frame?: ShopItem;
+  name_color?: ShopItem;
+  profile_border?: ShopItem;
+}
+
