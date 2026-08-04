@@ -53,7 +53,7 @@ export default function OrganizerDashboardPage() {
           <Button
             variant="primary"
             icon={<Plus className="w-4 h-4" />}
-            onClick={() => router.push('/dashboard/tournaments/new')}
+            onClick={() => router.push('/dashboard/tournaments?create=true')}
           >
             Create Tournament
           </Button>
@@ -90,36 +90,36 @@ export default function OrganizerDashboardPage() {
           <p className="text-xs text-gray-400 font-semibold flex items-center gap-1.5">
             <Trophy className="w-4 h-4 text-purple-400" /> Total Hosted
           </p>
-          <p className="text-3xl font-black text-white">
+          <div className="text-3xl font-black text-white">
             {statsLoading ? <Skeleton className="h-8 w-12" /> : stats?.totalTournaments ?? 0}
-          </p>
+          </div>
         </div>
 
         <div className="glass-card rounded-2xl p-5 border border-white/10 space-y-1">
           <p className="text-xs text-gray-400 font-semibold flex items-center gap-1.5">
             <Swords className="w-4 h-4 text-accent-neon" /> Active Now
           </p>
-          <p className="text-3xl font-black text-accent-neon">
+          <div className="text-3xl font-black text-accent-neon">
             {statsLoading ? <Skeleton className="h-8 w-12" /> : stats?.activeTournaments ?? 0}
-          </p>
+          </div>
         </div>
 
         <div className="glass-card rounded-2xl p-5 border border-white/10 space-y-1">
           <p className="text-xs text-gray-400 font-semibold flex items-center gap-1.5">
             <Users className="w-4 h-4 text-secondary-400" /> Players Registered
           </p>
-          <p className="text-3xl font-black text-white">
+          <div className="text-3xl font-black text-white">
             {statsLoading ? <Skeleton className="h-8 w-12" /> : stats?.totalParticipants ?? 0}
-          </p>
+          </div>
         </div>
 
         <div className="glass-card rounded-2xl p-5 border border-white/10 space-y-1">
           <p className="text-xs text-gray-400 font-semibold flex items-center gap-1.5">
             <CheckCircle2 className="w-4 h-4 text-amber-400" /> Completed
           </p>
-          <p className="text-3xl font-black text-amber-400">
+          <div className="text-3xl font-black text-amber-400">
             {statsLoading ? <Skeleton className="h-8 w-12" /> : stats?.completedTournaments ?? 0}
-          </p>
+          </div>
         </div>
       </div>
 
@@ -148,7 +148,7 @@ export default function OrganizerDashboardPage() {
               variant="primary"
               size="sm"
               icon={<Plus className="w-4 h-4" />}
-              onClick={() => router.push('/dashboard/tournaments/new')}
+              onClick={() => router.push('/dashboard/tournaments?create=true')}
             >
               Create Tournament
             </Button>

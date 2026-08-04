@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import DashboardSidebar from '@/components/layout/DashboardSidebar';
 import { useAuth } from '@/lib/auth/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -24,6 +25,7 @@ type Tab = 'joined' | 'organized';
 export default function DashboardTournamentsPage() {
   const { profile: user } = useAuth();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
 
   const [activeTab, setActiveTab] = useState<Tab>('joined');
   const [search, setSearch]       = useState('');
@@ -39,6 +41,19 @@ export default function DashboardTournamentsPage() {
   const [description, setDescription] = useState('');
   const [rules, setRules]         = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get('create') === 'true') {
+      setShowCreateModal(true);
+      setActiveTab('organized');
+    }
+    const paramGameId = searchParams.get('gameId');
+    if (paramGameId) {
+      setGameId(paramGameId);
+      setShowCreateModal(true);
+      setActiveTab('organized');
+    }
+  }, [searchParams]);
 
   const isOrganizerOrAdmin = user?.role === 'organizer' || user?.role === 'admin';
 

@@ -87,9 +87,9 @@ export default function OrganizerAnalyticsPage() {
             </div>
             <div>
               <p className="text-xs text-gray-500 font-semibold">{label}</p>
-              <p className={cn('text-2xl font-black', color)}>
+              <div className={cn('text-2xl font-black', color)}>
                 {statsLoading ? <Skeleton className="h-7 w-10" /> : value}
-              </p>
+              </div>
             </div>
           </div>
         ))}

@@ -61,7 +61,7 @@ export default function OrganizerTournamentsPage() {
         <Button
           variant="primary"
           icon={<Plus className="w-4 h-4" />}
-          onClick={() => router.push('/dashboard/tournaments/new')}
+          onClick={() => router.push('/dashboard/tournaments?create=true')}
         >
           Create Tournament
         </Button>
@@ -138,7 +138,7 @@ export default function OrganizerTournamentsPage() {
               variant="primary"
               size="sm"
               icon={<Plus className="w-4 h-4" />}
-              onClick={() => router.push('/dashboard/tournaments/new')}
+              onClick={() => router.push('/dashboard/tournaments?create=true')}
             >
               Create Tournament
             </Button>

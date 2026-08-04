@@ -88,7 +88,7 @@ export default function GameDetailPage() {
 
           {(user?.role === 'organizer' || user?.role === 'admin') && (
             <Button
-              onClick={() => router.push(`/dashboard/tournaments/new?gameId=${game.id}`)}
+              onClick={() => router.push(`/dashboard/tournaments?create=true&gameId=${game.id}`)}
               icon={<Plus className="w-4 h-4" />}
             >
               Create {game.name} Tournament
